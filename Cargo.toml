@@ -1,0 +1,45 @@
+[package]
+name = "prometheus_core"
+version = "0.1.0"
+edition = "2021"
+authors = ["Bruk Gebregziabher <bruk@signalbotics.com>"]
+description = "Core functionality for the Prometheus mobile robot"
+
+[dependencies]
+anyhow = "1.0"
+thiserror = "1.0"
+tokio = { version = "1", features = ["full"] }
+nalgebra = "*"
+
+[dependencies.rclrs]
+version = "0.4"
+
+[dependencies.rosidl_runtime_rs]
+version = "0.4"
+
+[dependencies.std_msgs]
+version = "*"
+
+[dependencies.builtin_interfaces]
+version = "*"
+
+[dependencies.geometry_msgs]
+version = "*"
+
+[dependencies.nav_msgs]
+version = "*"
+
+[lib]
+name = "prometheus_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "test_core"
+path = "src/bin/test_core.rs"
+
+[[bin]]
+name = "prometheus_navigation_node"
+path = "src/bin/prometheus_navigation_node.rs"
+
+[package.metadata.ros]
+install_to_share = ["launch", "config"]

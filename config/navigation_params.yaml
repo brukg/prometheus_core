@@ -1,0 +1,29 @@
+/**:
+  ros__parameters:
+    # Path follower parameters
+    path_follower_type: "pure_pursuit"  # Options: "pure_pursuit", "dwa", "simple"
+    
+    # Direct parameters (not nested)
+    lookahead_distance: 0.8
+    max_linear_velocity: 1.75
+    
+    # Navigation parameters
+    goal_tolerance: 0.1
+    path_resolution: 0.1
+    update_frequency: 10.0  # Hz
+    
+    # Topics
+    cmd_vel_topic: "/prometheus/cmd_vel"
+    odom_topic: "/prometheus/odom"
+    goal_topic: "goal_pose"
+
+/prometheus_navigation_node:  # Note the leading slash
+  ros__parameters:
+    lookahead_distance: 0.8
+    max_linear_velocity: 1.75
+    goal_tolerance: 0.1
+    path_resolution: 0.1
+    update_frequency: 10.0
+    cmd_vel_topic: "/prometheus/cmd_vel"
+    odom_topic: "/prometheus/odom"
+    goal_topic: "goal_pose"
