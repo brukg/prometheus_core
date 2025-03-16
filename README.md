@@ -47,7 +47,7 @@ The navigation stack features advanced path planning capabilities:
 - ROS 2 (Jazzy or compatible)
 - Rust (nightly toolchain recommended)
 - Cargo
-- ros2_rust
+- [ros2_rust](https://github.com/ros2-rust/ros2_rust)
 
 ### Building from Source
 

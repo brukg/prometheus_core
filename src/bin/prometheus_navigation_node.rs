@@ -86,11 +86,11 @@ impl PrometheusNavigationNode {
 
         // Create publisher for velocity commands
         let cmd_vel_publisher =
-            node.create_publisher::<Twist>(&cmd_vel_topic, QOS_PROFILE_DEFAULT)?;
+            node.create_publisher::<Twist>(&cmd_vel_topic)?;
 
         // Create publisher for the planned path
         let path_publisher =
-            node.create_publisher::<Path>("/prometheus/planned_path", QOS_PROFILE_DEFAULT)?;
+            node.create_publisher::<Path>("/prometheus/planned_path")?;
 
         // Create the node instance with a running flag
         let running = Arc::new(Mutex::new(true));
@@ -115,7 +115,6 @@ impl PrometheusNavigationNode {
             .node
             .create_subscription::<PoseStamped, _>(
                 &goal_topic,
-                QOS_PROFILE_DEFAULT,
                 move |msg: PoseStamped| {
                     prometheus_navigation_node_clone.goal_callback(msg);
                 },
@@ -129,7 +128,6 @@ impl PrometheusNavigationNode {
             .node
             .create_subscription::<Odometry, _>(
                 &odom_topic,
-                QOS_PROFILE_DEFAULT,
                 move |msg: Odometry| {
                     prometheus_navigation_node_clone.odom_callback(msg);
                 },

@@ -7,6 +7,7 @@ Prerequisites
 * ROS 2 Jazzy (or compatible version)
 * Rust (nightly toolchain recommended)
 * Cargo
+* [ros2_rust](https://github.com/ros2-rust/ros2_rust)
 
 Installing from Source
 ---------------------
@@ -16,7 +17,7 @@ Installing from Source
    .. code-block:: bash
 
       cd ~/ros2_ws/src
-      git clone https://github.com/yourusername/prometheus_core.git
+      git clone https://github.com/brukg/prometheus_core.git
 
 2. Build the package using colcon:
 
