@@ -39,6 +39,6 @@ impl PathPlanner for PathPlannerImpl {
         start: (f64, f64),
         goal: (f64, f64),
     ) -> Result<Vec<(f64, f64)>, Box<dyn Error>> {
-        Ok(self.plan(start, goal, &Costmap::new()))
+        Ok(self.plan(start, goal, &Costmap::new(true)))
     }
 }

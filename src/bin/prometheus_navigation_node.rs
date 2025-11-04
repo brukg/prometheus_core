@@ -1,23 +1,24 @@
 use anyhow::{Error, Result};
 use prometheus_core::{
-    control::ControlStack, navigation::path_follower::pure_pursuit::PurePursuitFollower,
-    navigation::path_follower::PathFollower, navigation::NavigationStack,
-    perception::PerceptionStack, PrometheusCore,
+    control::ControlStack,
+    navigation::costmap::WorldPoint,
+    navigation::path_follower::pure_pursuit::PurePursuitFollower,
+    navigation::path_follower::PathFollower,
+    navigation::NavigationStack,
+    perception::PerceptionStack,
+    PrometheusCore,
 };
-use rclrs::{
-    Context, CreateBasicExecutor, Node, RclrsErrorFilter, SpinOptions, QOS_PROFILE_DEFAULT,
-};
+use rclrs::{Context, Node, QOS_PROFILE_DEFAULT};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
 // Import the message types directly from the crates
-use builtin_interfaces::msg::Time;
 use geometry_msgs::msg::{PoseStamped, Twist};
 use nav_msgs::msg::Odometry;
 use nav_msgs::msg::Path;
-use std_msgs::msg::Header;
+use sensor_msgs::msg::LaserScan;
 
 struct PrometheusNavigationNode {
     core: Mutex<PrometheusCore>,
@@ -25,6 +26,7 @@ struct PrometheusNavigationNode {
     cmd_vel_publisher: Arc<rclrs::Publisher<Twist>>,
     goal_subscription: Mutex<Option<Arc<rclrs::Subscription<PoseStamped>>>>,
     odom_subscription: Mutex<Option<Arc<rclrs::Subscription<Odometry>>>>,
+    scan_subscription: Mutex<Option<Arc<rclrs::Subscription<LaserScan>>>>,
     running: Arc<Mutex<bool>>,
     current_path: Arc<Mutex<Option<Vec<(f64, f64)>>>>,
     current_goal: Arc<Mutex<Option<(f64, f64)>>>,
@@ -34,9 +36,9 @@ struct PrometheusNavigationNode {
 }
 
 impl PrometheusNavigationNode {
-    pub fn new(executor: &rclrs::Executor, name: &str) -> Result<Arc<Self>, rclrs::RclrsError> {
-        // Create a node using the executor
-        let node = executor.create_node(name)?;
+    pub fn new(context: &Context, name: &str) -> Result<Arc<Self>, rclrs::RclrsError> {
+        // Create a node using the context
+        let node = Node::new(context, name)?;
 
         // Create the Prometheus Core
         let mut core = PrometheusCore::new();
@@ -47,6 +49,7 @@ impl PrometheusNavigationNode {
         let cmd_vel_topic = "/prometheus/cmd_vel".to_string();
         let odom_topic = "/prometheus/odom".to_string();
         let goal_topic = "goal_pose".to_string();
+        let scan_topic = "/prometheus/scan".to_string();
 
         // Print parameter values
         println!(
@@ -54,8 +57,8 @@ impl PrometheusNavigationNode {
             lookahead_distance, max_linear_velocity
         );
         println!(
-            "Topics: cmd_vel={}, odom={}, goal={}",
-            cmd_vel_topic, odom_topic, goal_topic
+            "Topics: cmd_vel={}, odom={}, goal={}, scan={}",
+            cmd_vel_topic, odom_topic, goal_topic, scan_topic
         );
 
         // Create a navigation stack with Pure Pursuit follower
@@ -86,11 +89,11 @@ impl PrometheusNavigationNode {
 
         // Create publisher for velocity commands
         let cmd_vel_publisher =
-            node.create_publisher::<Twist>(&cmd_vel_topic)?;
+            node.create_publisher::<Twist>(&cmd_vel_topic, QOS_PROFILE_DEFAULT)?;
 
         // Create publisher for the planned path
         let path_publisher =
-            node.create_publisher::<Path>("/prometheus/planned_path")?;
+            node.create_publisher::<Path>("/prometheus/planned_path", QOS_PROFILE_DEFAULT)?;
 
         // Create the node instance with a running flag
         let running = Arc::new(Mutex::new(true));
@@ -101,6 +104,7 @@ impl PrometheusNavigationNode {
             cmd_vel_publisher,
             goal_subscription: None.into(),
             odom_subscription: None.into(),
+            scan_subscription: None.into(),
             running,
             current_path: Arc::new(Mutex::new(None)),
             current_goal: Arc::new(Mutex::new(None)),
@@ -115,6 +119,7 @@ impl PrometheusNavigationNode {
             .node
             .create_subscription::<PoseStamped, _>(
                 &goal_topic,
+                QOS_PROFILE_DEFAULT,
                 move |msg: PoseStamped| {
                     prometheus_navigation_node_clone.goal_callback(msg);
                 },
@@ -128,12 +133,27 @@ impl PrometheusNavigationNode {
             .node
             .create_subscription::<Odometry, _>(
                 &odom_topic,
+                QOS_PROFILE_DEFAULT,
                 move |msg: Odometry| {
                     prometheus_navigation_node_clone.odom_callback(msg);
                 },
             )?;
 
         *prometheus_navigation_node.odom_subscription.lock().unwrap() = Some(odom_subscription);
+
+        // Set up laser scan subscription
+        let prometheus_navigation_node_clone = Arc::clone(&prometheus_navigation_node);
+        let scan_subscription = prometheus_navigation_node
+            .node
+            .create_subscription::<LaserScan, _>(
+                &scan_topic,
+                QOS_PROFILE_DEFAULT,
+                move |msg: LaserScan| {
+                    prometheus_navigation_node_clone.scan_callback(msg);
+                },
+            )?;
+
+        *prometheus_navigation_node.scan_subscription.lock().unwrap() = Some(scan_subscription);
 
         // Start a thread to periodically publish velocity commands
         let prometheus_navigation_node_clone = Arc::clone(&prometheus_navigation_node);
@@ -222,6 +242,44 @@ impl PrometheusNavigationNode {
             "Updated pose from odom: x={:.2}, y={:.2}, theta={:.2}",
             x, y, theta
         );
+    }
+
+    fn scan_callback(&self, msg: LaserScan) {
+        // Current robot pose in the map frame
+        let current_pose = *self.current_pose.lock().unwrap();
+        
+        // Process scan data into world points
+        let mut world_points = Vec::new();
+        let angle_min = msg.angle_min;
+        let angle_increment = msg.angle_increment;
+        
+        for (i, range) in msg.ranges.iter().enumerate() {
+            // Skip invalid measurements
+            if *range < msg.range_min || *range > msg.range_max {
+                continue;
+            }
+            
+            // Convert polar (laser) to cartesian coordinates (relative to robot)
+            let angle = angle_min + (angle_increment * i as f32);
+            let x_robot = range * angle.cos();
+            let y_robot = range * angle.sin();
+            
+            // Transform to world coordinates using robot's pose
+            let x_world = current_pose.0 + (x_robot as f64 * current_pose.2.cos() - y_robot as f64 * current_pose.2.sin());
+            let y_world = current_pose.1 + (x_robot as f64 * current_pose.2.sin() + y_robot as f64 * current_pose.2.cos());
+            
+            world_points.push(WorldPoint { x: x_world, y: y_world });
+        }
+        
+        // Update costmap in the navigation stack
+        let mut core = self.core.lock().unwrap();
+        if let Some(nav_stack) = core.navigation_stack_mut() {
+            if let Err(e) = nav_stack.update_local_map(&world_points, msg.range_max as f64) {
+                eprintln!("Failed to update local costmap with laser data: {}", e);
+            } else {
+                println!("Updated local costmap with {} points from laser scan", world_points.len());
+            }
+        }
     }
 
     fn timer_callback(&self) {
@@ -364,21 +422,18 @@ impl Drop for PrometheusNavigationNode {
 fn main() -> Result<(), Error> {
     println!("Initializing Prometheus Navigation Node...");
 
-    // Create the ROS 2 context and executor
+    // Create the ROS 2 context
     // TODO: This will automatically read parameters from the parameter file
     // when launched with --ros-args --params-file /path/to/config/navigation_params.yaml
-    let mut executor = Context::default_from_env()?.create_basic_executor();
+    let context = Context::new(std::env::args())?;
 
     // Create the Prometheus navigation node with the correct name
-    let _prometheus_navigation_node =
-        PrometheusNavigationNode::new(&executor, "prometheus_navigation_node")?;
+    let prometheus_navigation_node =
+        PrometheusNavigationNode::new(&context, "prometheus_navigation_node")?;
 
     println!("Prometheus Navigation Node initialized. Starting to spin...");
     println!("To use with parameters: ros2 run prometheus_core prometheus_navigation_node --ros-args --params-file /path/to/prometheus_core/config/navigation_params.yaml");
 
-    // Spin the executor to process callbacks
-    executor
-        .spin(SpinOptions::default())
-        .first_error()
-        .map_err(|err| err.into())
+    // Spin the node to process callbacks
+    rclrs::spin(prometheus_navigation_node.node.clone()).map_err(|err| err.into())
 }

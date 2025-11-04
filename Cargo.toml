@@ -29,6 +29,9 @@ version = "*"
 [dependencies.nav_msgs]
 version = "*"
 
+[dependencies.sensor_msgs]
+version = "*"
+
 [lib]
 name = "prometheus_core"
 path = "src/lib.rs"
