@@ -4,7 +4,25 @@ Usage
 Running the Prometheus Node
 --------------------------
 
-After building the package, you can run the Prometheus node with:
+**Using the Launch File (Recommended)**
+
+After building the package, you can launch the Prometheus node with:
+
+.. code-block:: bash
+
+   ros2 launch prometheus_core navigation.launch.py
+
+This will start the navigation node with the default configuration from ``config/navigation_params.yaml``.
+
+To use a custom parameter file:
+
+.. code-block:: bash
+
+   ros2 launch prometheus_core navigation.launch.py params_file:=/path/to/custom_params.yaml
+
+**Direct Execution**
+
+Alternatively, you can run the node directly:
 
 .. code-block:: bash
 
@@ -36,14 +54,38 @@ You can send a goal to the robot using the ``goal_pose`` topic:
        z: 0.0
        w: 1.0"
 
-Monitoring Velocity Commands
---------------------------
+Topics
+------
 
-The node publishes velocity commands on the ``cmd_vel`` topic. You can monitor these with:
+**Subscribed Topics:**
+
+- ``/prometheus/odom`` (nav_msgs/Odometry) - Robot odometry for localization
+- ``/prometheus/scan`` (sensor_msgs/LaserScan) - Laser scan data for obstacle detection
+- ``/goal_pose`` (geometry_msgs/PoseStamped) - Goal poses for navigation
+
+**Published Topics:**
+
+- ``/prometheus/cmd_vel`` (geometry_msgs/Twist) - Velocity commands for the robot
+- ``/prometheus/planned_path`` (nav_msgs/Path) - Planned path for visualization
+
+Monitoring Topics
+-----------------
+
+You can monitor the node's activity by echoing various topics:
 
 .. code-block:: bash
 
-   ros2 topic echo /cmd_vel 
+   # Monitor velocity commands
+   ros2 topic echo /prometheus/cmd_vel
+
+   # Monitor the planned path
+   ros2 topic echo /prometheus/planned_path
+
+   # Monitor laser scans
+   ros2 topic echo /prometheus/scan
+
+   # Monitor odometry
+   ros2 topic echo /prometheus/odom 
 
 Running with Parameters
 ---------------------
