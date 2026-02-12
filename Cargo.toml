@@ -4,33 +4,38 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Bruk Gebregziabher <bruk@signalbotics.com>"]
 description = "Core functionality for the Prometheus mobile robot"
+autobins = false
+
+[features]
+default = []
+# Enable ros2 feature when building in a colcon/ament workspace with ROS2 message packages.
+# The ROS2 message crates (geometry_msgs, nav_msgs, etc.) are generated locally by ament
+# and cannot be resolved from crates.io. Add them to Cargo.toml only in the ROS2 workspace.
+ros2 = []
 
 [dependencies]
 anyhow = "1.0"
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
-nalgebra = "*"
+nalgebra = "0.33"
+ordered-float = "4"
+rand = "0.8"
+rand_distr = "0.4"
+log = "0.4"
+env_logger = "0.11"
 
-[dependencies.rclrs]
-version = "0.4"
-
-[dependencies.rosidl_runtime_rs]
-version = "0.4"
-
-[dependencies.std_msgs]
-version = "*"
-
-[dependencies.builtin_interfaces]
-version = "*"
-
-[dependencies.geometry_msgs]
-version = "*"
-
-[dependencies.nav_msgs]
-version = "*"
-
-[dependencies.sensor_msgs]
-version = "*"
+# NOTE: ROS2 dependencies (rclrs, geometry_msgs, nav_msgs, sensor_msgs, etc.)
+# are not listed here because they are only available in a ROS2/colcon workspace.
+# When building with `colcon build`, add them to a workspace-local Cargo.toml override
+# or uncomment below when ament-generated crates are in the dependency path:
+#
+# rclrs = "0.4"
+# rosidl_runtime_rs = "0.4"
+# std_msgs = "*"
+# builtin_interfaces = "*"
+# geometry_msgs = "*"
+# nav_msgs = "*"
+# sensor_msgs = "*"
 
 [lib]
 name = "prometheus_core"
@@ -40,9 +45,11 @@ path = "src/lib.rs"
 name = "test_core"
 path = "src/bin/test_core.rs"
 
-[[bin]]
-name = "prometheus_navigation_node"
-path = "src/bin/prometheus_navigation_node.rs"
+# The navigation node requires a full ROS2 workspace.
+# Build with: colcon build --packages-select prometheus_core
+# [[bin]]
+# name = "prometheus_navigation_node"
+# path = "src/bin/prometheus_navigation_node.rs"
 
 [package.metadata.ros]
 install_to_share = ["launch", "config"]

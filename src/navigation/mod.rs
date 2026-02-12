@@ -1,8 +1,16 @@
 //! Navigation module for Prometheus robot
 pub mod costmap;
+pub mod costmap_2d;
 pub mod path_follower;
 pub mod path_planning;
 pub mod planner;
+pub mod types;
+pub mod traits;
+pub mod planners;
+pub mod controllers;
+pub mod smoother;
+pub mod bt;
+pub mod nav_behaviors;
 
 use self::costmap::{CostmapManager, WorldPoint};
 use self::path_follower::DefaultPathFollower;
