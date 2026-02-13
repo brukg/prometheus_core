@@ -45,11 +45,13 @@ path = "src/lib.rs"
 name = "test_core"
 path = "src/bin/test_core.rs"
 
-# The navigation node requires a full ROS2 workspace.
-# Build with: colcon build --packages-select prometheus_core
-# [[bin]]
-# name = "prometheus_navigation_node"
-# path = "src/bin/prometheus_navigation_node.rs"
+[[bin]]
+name = "prometheus_navigation_node"
+path = "src/bin/prometheus_navigation_node.rs"
+
+[[bin]]
+name = "nav2_example"
+path = "src/bin/nav2_example.rs"
 
 [package.metadata.ros]
 install_to_share = ["launch", "config"]
