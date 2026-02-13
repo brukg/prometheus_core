@@ -89,7 +89,7 @@ impl RegulatedPurePursuit {
             regulated_linear_scaling_min_speed: 0.25,
             use_approach_vel_scaling: true,
             approach_velocity_scaling_dist: 0.6,
-            rotate_to_heading_min_angle: 0.785,
+            rotate_to_heading_min_angle: 1.5,
             rotate_to_heading_angular_vel: 1.8,
             goal_tolerance: 0.25,
         }
@@ -334,21 +334,57 @@ impl Controller for RegulatedPurePursuit {
         let robot = &pose.pose;
         let current_speed = velocity.linear_x.abs();
 
-        // Check if we should rotate to heading
-        if let Some(first_path_pose) = self.global_plan.first() {
-            let dx = first_path_pose.pose.x - robot.x;
-            let dy = first_path_pose.pose.y - robot.y;
-            let path_heading = dy.atan2(dx);
-            let angle_diff = normalize_angle(path_heading - robot.yaw);
+        // Rotate-to-heading: only at the beginning of path following (robot near
+        // path start) and heading difference is large. Once moving, pure pursuit handles steering.
+        {
+            // Find the closest point on the path to determine if we're near the start
+            let mut closest_idx = 0;
+            let mut min_dist_sq = f64::MAX;
+            for (i, ps) in self.global_plan.iter().enumerate() {
+                let dx = ps.pose.x - robot.x;
+                let dy = ps.pose.y - robot.y;
+                let d_sq = dx * dx + dy * dy;
+                if d_sq < min_dist_sq {
+                    min_dist_sq = d_sq;
+                    closest_idx = i;
+                }
+            }
 
-            if angle_diff.abs() > self.rotate_to_heading_min_angle && current_speed < 0.1 {
-                // Rotate in place toward the path heading
-                let angular = if angle_diff > 0.0 {
-                    self.rotate_to_heading_angular_vel
-                } else {
-                    -self.rotate_to_heading_angular_vel
-                };
-                return Ok(Twist::new(0.0, angular.clamp(-self.max_angular_vel, self.max_angular_vel)));
+            // Only rotate-to-heading in the first quarter of the path and when stopped
+            let near_start = closest_idx < self.global_plan.len() / 4 + 1;
+            if near_start && current_speed < 0.1 {
+                // Use a point well ahead on the path for a stable heading reference
+                let min_dist_for_heading = 0.3;
+                let mut heading_target: Option<&Pose2D> = None;
+                for ps in &self.global_plan {
+                    let dx = ps.pose.x - robot.x;
+                    let dy = ps.pose.y - robot.y;
+                    if (dx * dx + dy * dy).sqrt() >= min_dist_for_heading {
+                        heading_target = Some(&ps.pose);
+                        break;
+                    }
+                }
+                if heading_target.is_none() {
+                    heading_target = self.global_plan.last().map(|ps| &ps.pose);
+                }
+
+                if let Some(target) = heading_target {
+                    let dx = target.x - robot.x;
+                    let dy = target.y - robot.y;
+                    if (dx * dx + dy * dy).sqrt() > 0.05 {
+                        let path_heading = dy.atan2(dx);
+                        let angle_diff = normalize_angle(path_heading - robot.yaw);
+
+                        if angle_diff.abs() > self.rotate_to_heading_min_angle {
+                            // P-controller: angular vel proportional to error
+                            let angular = angle_diff * self.rotate_to_heading_angular_vel;
+                            return Ok(Twist::new(
+                                0.0,
+                                angular.clamp(-self.max_angular_vel, self.max_angular_vel),
+                            ));
+                        }
+                    }
+                }
             }
         }
 
